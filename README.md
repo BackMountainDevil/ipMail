@@ -1,8 +1,18 @@
- 
 # ipMail
 
 Dynamic DNS
 
+定时检测本机ip,使用smtp发送到指定邮箱
+
+首先修改 config.ini 中的配置，需要注意的是不需要加上双引号，否则程序识别出错，下面是 zhangsan 发给 wangwu 的案例
+
+```ini
+[SMTP]
+SENDER = zhangsan@qq.com
+PASSWORD = zhangsan_password
+RECEIVER = wangwu@qq.com
+SMTP_SERVER = smtp.qq.com
+```
 
 # 相关阅读
 
