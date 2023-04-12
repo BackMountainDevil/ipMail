@@ -7,7 +7,16 @@ import configparser
 
 
 def get_ip(netcard="wlan0"):
-    # use command ifconfig to get internet ipv4 of netcard wlan0
+    """use command ifconfig to get internet ipv4 of netcard wlan0
+
+    Args:
+        netcard (str, optional): 网卡名称，默认是无线网卡 "wlan0"，网线一般是 "lo". 
+        如果网卡不存在，将会返回ifconfig的错误信息：
+            "error fetching interface information: Device not found"
+
+    Returns:
+        string: ipv4 address if netcard exist.
+    """
     now_ip = os.popen("ifconfig %s | grep inet" % netcard).read()
     match_data = re.search(r"inet \d+\.\d+\.\d+\.\d+", now_ip)
     if match_data:
