@@ -32,12 +32,12 @@ def send_email(
     """send email via smtp
 
     Args:
-        from_addr (_type_): 发送方邮箱地址
-        password (_type_): 发送方账户密码
-        to_addr (_type_): 收件人邮箱地址
-        subject (_type_): 邮件主题
-        content (_type_): 邮件内容
-        smtp_server (_type_): 发送方smtp服务器
+        from_addr (str): 发送方邮箱地址
+        password (str): 发送方账户授权码，非邮箱密码
+        to_addr (str): 收件人邮箱地址
+        subject (str): 邮件主题
+        content (str): 邮件内容
+        smtp_server (str): 发送方smtp服务器
         smtp_port (int, optional): smtp服务端口，默认为 465
 
     Returns:
