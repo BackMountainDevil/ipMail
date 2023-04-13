@@ -14,6 +14,14 @@ RECEIVER = wangwu@qq.com
 SMTP_SERVER = smtp.qq.com
 ```
 
+让这个脚本作为系统任务执行，首先根据自身情况修改 ipMail.service 中的 ExecStart 中的代码路径，然后再继续
+
+```bash
+sudo cp ipMail.service /usr/lib/systemd/system  # 复制任务
+sudo systemctl enable ipMail.service --now # 启动任务，并设置为开启自启
+sudo journalctl -u ipMail   # 查看日志
+```
+
 # 相关阅读
 
 [Linux下当公网IP发生变化时，邮件发送变化的IP，python代码 工学院_9527 2021-09-30](https://blog.csdn.net/qq_41958350/article/details/120568166):socket获取本地ip,smtp发邮件，threading.Timer定时任务
@@ -42,3 +50,5 @@ SMTP_SERVER = smtp.qq.com
 > with urllib.request.urlopen('http://www.3322.org/dyndns/getip') as response:
 >         html = response.read()
 >         ip = str(html, encoding='utf-8').replace("\n", "")
+
+[Systemd 定时器教程 阮一峰 2018年3月30日](https://www.ruanyifeng.com/blog/2018/03/systemd-timer.html)

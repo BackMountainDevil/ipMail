@@ -1,0 +1,11 @@
+[Unit]
+Description=send email with ip
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python /home/mifen/Documents/code/ipMail/main.py
+
+[Install]
+WantedBy=network.target
