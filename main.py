@@ -1,16 +1,17 @@
+import configparser
 import os
 import re
 import smtplib
+import threading
 from email.mime.text import MIMEText
 from email.utils import formataddr
-import configparser
 
 
-def get_ip(netcard="wlan0"):
+def get_ip(netcard="enp2s0"):
     """use command ifconfig to get internet ipv4 of netcard wlan0
 
     Args:
-        netcard (str, optional): 网卡名称，默认是无线网卡 "wlan0"，网线一般是 "lo". 
+        netcard (str, optional): 网卡名称，默认是无线网卡 "wlan0"，网线一般是 "lo".
         如果网卡不存在，将会返回ifconfig的错误信息：
             "error fetching interface information: Device not found"
 
@@ -26,8 +27,28 @@ def get_ip(netcard="wlan0"):
     return now_ip
 
 
+def getConfig(section, option, configFile="config.ini"):
+    # use configparser read config from config.ini
+    cfg = configparser.RawConfigParser()  # 创建配置文件对象
+    cfg.optionxform = lambda option: option  # 重载键值存储时不重置为小写
+    cfg.read(configFile, encoding="utf-8")  # 读取配置文件，没有就创建
+    if not cfg.has_section(section):
+        cfg.add_section(section)
+        with open(configFile, "w") as configfile:
+            cfg.write(configfile)
+    if cfg.has_option(section, option):
+        return cfg.get(section, option)
+    return None
+
+
 def send_email(
-    from_addr, password, to_addr, subject, content, smtp_server, smtp_port=465
+    from_addr=getConfig("SMTP", "SENDER"),
+    password=getConfig("SMTP", "PASSWORD"),
+    to_addr=getConfig("SMTP", "RECEIVER"),
+    subject="ip",
+    content="content",
+    smtp_server=getConfig("SMTP", "SMTP_SERVER"),
+    smtp_port=465,
 ):
     """send email via smtp
 
@@ -65,29 +86,22 @@ def send_email(
     return ret
 
 
-def getConfig(section, option, configFile="config.ini"):
-    # use configparser read config from config.ini
-    cfg = configparser.RawConfigParser()  # 创建配置文件对象
-    cfg.optionxform = lambda option: option  # 重载键值存储时不重置为小写
-    cfg.read(configFile, encoding="utf-8")  # 读取配置文件，没有就创建
-    if not cfg.has_section(section):
-        cfg.add_section(section)
-        with open(configFile, "w") as configfile:
-            cfg.write(configfile)
-    if cfg.has_option(section, option):
-        return cfg.get(section, option)
-    return None
+def main():
+    # user function get_ip to get ip every hour, if ip change, then send an email
+    ip_now = get_ip()  # 获取当前ip
+    global ip
+    if not ip_now == ip:
+        print("ip update to:", ip_now)
+        send_email(content=ip_now)
+        ip = ip_now
+    else:
+        print("ip not change:", ip_now)
+    threading.Timer(3600, main).start()  # 3600s 后调用该函数
 
 
 # python main func
 if __name__ == "__main__":
-    print(get_ip())
-    print(get_ip("lo"))
-    send_email(
-        getConfig("SMTP", "SENDER"),
-        getConfig("SMTP", "PASSWORD"),
-        getConfig("SMTP", "RECEIVER"),
-        "ipv4",
-        get_ip("lo"),
-        getConfig("SMTP", "SMTP_SERVER"),
-    )
+    ip = get_ip()
+    print("ip:", ip)
+    send_email(content=ip)
+    main()
