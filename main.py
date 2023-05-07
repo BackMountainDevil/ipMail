@@ -1,5 +1,5 @@
 import configparser
-import os
+import subprocess
 import re
 import smtplib
 import threading
@@ -18,7 +18,12 @@ def get_ip(netcard="enp2s0"):
     Returns:
         string: ipv4 address if netcard exist.
     """
-    now_ip = os.popen("ifconfig %s | grep inet" % netcard).read()
+    cmd = ["ifconfig", netcard]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    out, err = proc.communicate()
+    if proc.returncode != 0:
+        raise Exception(f"Command {cmd} failed with error: {err.decode()}")
+    now_ip = out.decode()
     match_data = re.search(r"inet \d+\.\d+\.\d+\.\d+", now_ip)
     if match_data:
         now_ip = match_data.group().split(" ")[1]
