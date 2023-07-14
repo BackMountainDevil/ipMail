@@ -18,6 +18,7 @@ SMTP_SERVER = smtp.qq.com
 
 ```bash
 sudo cp ipMail.service /usr/lib/systemd/system  # 复制任务
+sudo systemctl daemon-reload
 sudo systemctl enable ipMail.service --now # 启动任务，并设置为开启自启
 sudo journalctl -u ipMail   # 查看日志
 ```
