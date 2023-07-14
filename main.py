@@ -41,7 +41,7 @@ def get_ipv6(netcard="wlan0"):
             "error fetching interface information: Device not found"
 
     Returns:
-        string: ipv6 address if netcard exist.
+        list: ipv6 address list if exist.
     """
     cmd = ["ifconfig", netcard]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -49,10 +49,20 @@ def get_ipv6(netcard="wlan0"):
     if proc.returncode != 0:
         raise Exception(f"Command {cmd} failed with error: {err.decode()}")
     output = out.decode()
+    # 一个网卡可能具有多个 ipv6 地址
     start_str = "inet6"
-    start = output.find(start_str)
-    end = output.find("prefixlen")
-    return output[start + len(start_str) : end].strip()  # 切片去除空格
+    stop_str = "prefixlen"
+    ret = []
+    start = 0
+    while True:
+        start = output.find(start_str, start)
+        end = output.find(stop_str, start)
+        if start != -1 and end != -1 and start < end:
+            ret.append(output[start + len(start_str) : end].strip())  # 切片去除空格
+            start += end - start
+        else:
+            break
+    return ret
 
 
 def getConfig(section, option, configFile="config.ini"):
@@ -121,7 +131,7 @@ def main():
     global ip, ipv6
     if not ip_now == ip or not ipv6_now == ipv6:
         print("ip update to:", ip_now, ipv6_now)
-        send_email(content=ip_now + "\n" + ipv6_now)
+        send_email(content=ip_now + "\n" + str(ipv6_now))
         ip = ip_now
         ipv6 = ipv6_now
     else:
@@ -134,5 +144,5 @@ if __name__ == "__main__":
     ip = get_ip()
     ipv6 = get_ipv6()
     print("ipv4:", ip, "\tipv6:", ipv6)
-    send_email(content=ip + "\n" + ipv6)
+    send_email(content=ip + "\n" + str(ipv6))
     main()
