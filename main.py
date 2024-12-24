@@ -184,7 +184,8 @@ def send_email(
             msg.as_string(),
         )
         server.quit()
-    except Exception:
+    except Exception as e:
+        print(f"发送邮件时出错: {e}")
         ret = False
     return ret
 
@@ -198,7 +199,7 @@ def main():
             "ip update to:",
             ip_now,
         )
-        send_email(content=ip_now)
+        send_email(content=str(ip_now))
         IPS = ip_now
     else:
         print("ip not change:", ip_now)
@@ -209,5 +210,5 @@ def main():
 if __name__ == "__main__":
     IPS = get_ips(filter_ip)
     print("ips:", IPS)
-    send_email(content=IPS)
+    send_email(content=str(IPS))
     main()
