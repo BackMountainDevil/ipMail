@@ -1,39 +1,30 @@
 import configparser
-import subprocess
+import platform
 import re
 import smtplib
+import socket
+import subprocess
 import threading
 from email.mime.text import MIMEText
 from email.utils import formataddr
 
 
-def get_ip(netcard="wlan0"):
-    """use command ifconfig to get internet ipv4 of netcard wlan0
-
-    Args:
-        netcard (str, optional): 网卡名称，默认是无线网卡 "wlan0"，网线一般是 "lo".
-        如果网卡不存在，将会返回ifconfig的错误信息：
-            "error fetching interface information: Device not found"
-
-    Returns:
-        string: ipv4 address if netcard exist.
+def get_ipv4_by_socket():
     """
-    cmd = ["ifconfig", netcard]
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    out, err = proc.communicate()
-    if proc.returncode != 0:
-        raise Exception(f"Command {cmd} failed with error: {err.decode()}")
-    now_ip = out.decode()
-    match_data = re.search(r"inet \d+\.\d+\.\d+\.\d+", now_ip)
-    if match_data:
-        now_ip = match_data.group().split(" ")[1]
-    else:
-        now_ip = ""
-    return now_ip
+    通过socket获取IPv4地址
+    """
+    try:
+        hostname = socket.gethostname()
+        ip_addresses = socket.gethostbyname_ex(hostname)[2]
+        ipv4_addresses = set(ip for ip in ip_addresses)
+        return ipv4_addresses
+    except Exception as e:
+        print(f"获取IPv4地址时出错: {e}")
+        return None
 
 
-def get_ipv6(netcard="wlan0"):
-    """use command ifconfig to get internet ipv6 address of netcard
+def get_ip_by_ifconfig(netcard="wlan0", v4=True, v6=True):
+    """use command ifconfig to get internet ip of netcard wlan0
 
     Args:
         netcard (str, optional): 网卡名称，默认是无线网卡 "wlan0"，网线一般是 "lo".
@@ -41,7 +32,7 @@ def get_ipv6(netcard="wlan0"):
             "error fetching interface information: Device not found"
 
     Returns:
-        list: ipv6 address list if exist.
+        set: ip address set if netcard exist.
     """
     cmd = ["ifconfig", netcard]
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -49,20 +40,94 @@ def get_ipv6(netcard="wlan0"):
     if proc.returncode != 0:
         raise Exception(f"Command {cmd} failed with error: {err.decode()}")
     output = out.decode()
+
+    ip = set()
+    if v4:
+        match_data = re.search(r"inet \d+\.\d+\.\d+\.\d+", output)
+        if match_data:
+            now_ip = match_data.group().split(" ")[1]
+            ip.add(now_ip)
     # 一个网卡可能具有多个 ipv6 地址
-    start_str = "inet6"
-    stop_str = "prefixlen"
-    ret = []
-    start = 0
-    while True:
-        start = output.find(start_str, start)
-        end = output.find(stop_str, start)
-        if start != -1 and end != -1 and start < end:
-            ret.append(output[start + len(start_str) : end].strip())  # 切片去除空格
-            start += end - start
+    if v6:
+        start_str = "inet6"
+        stop_str = "prefixlen"
+        start = 0
+        while True:
+            start = output.find(start_str, start)
+            end = output.find(stop_str, start)
+            if start != -1 and end != -1 and start < end:
+                ip.add(output[start + len(start_str) : end].strip())  # 切片去除空格
+                start += end - start
+            else:
+                break
+    return ip
+
+
+def get_ip_by_ipconfig(v4=True, v6=True):
+    """
+    通过ipconfig获取IP地址
+    Args:
+        v4 (bool, optional): 是否获取IPv4地址，默认True
+        v6 (bool, optional): 是否获取IPv6地址，默认True
+    Returns:
+        set: ip address set
+    """
+    try:
+        result = subprocess.run(["ipconfig"], capture_output=True, text=True)
+        output = result.stdout
+        ip_addresses = set()
+        lines = output.splitlines()
+        for _, line in enumerate(lines):
+            if v4 and "IPv4 Address" in line:
+                ip_address = line.split(":")[1].strip()
+                ip_addresses.add(ip_address)
+            elif v6 and "IPv6 Address" in line:  # ipv6地址内含有冒号，需要特殊处理
+                idx = line.find(":") + 1
+                ip_address = line[idx:].strip()
+                ip_addresses.add(ip_address)
+        return ip_addresses
+    except Exception as e:
+        print(f"获取IP地址时出错: {e}")
+        return None
+
+
+def filter_ip(ips: set):
+    """
+    自定义过滤规则，过滤掉不需要的IP地址
+    """
+    ret = set()
+    for ip in ips:
+        if (
+            ip.startswith("192.168.")
+            or ip.startswith("127.0.")
+            or ip.startswith("fe80:")
+        ):
+            continue
         else:
-            break
+            ret.add(ip)
     return ret
+
+
+def get_ips(filter=None):
+    """
+    根据不同操作系统，获取ip地址
+    Args:
+        filter (function, optional): 自定义过滤规则，过滤掉不需要的IP地址
+    Returns:
+        set: ip address set
+    """
+    ipv4 = get_ipv4_by_socket()
+    os_type = platform.system()
+    if os_type == "Windows":
+        ip = get_ip_by_ipconfig()
+    elif os_type == "Linux":
+        ip = get_ip_by_ifconfig()
+    else:
+        assert False, f"不支持的操作系统类型: {os_type}"
+    ip = ip.union(ipv4)
+    if filter:
+        ip = filter(ip)
+    return ip
 
 
 def getConfig(section, option, configFile="config.ini"):
@@ -125,24 +190,24 @@ def send_email(
 
 
 def main():
-    # user function get_ip to get ip every hour, if ip change, then send an email
-    ip_now = get_ip()  # 获取当前ip
-    ipv6_now = get_ipv6()
-    global ip, ipv6
-    if not ip_now == ip or not ipv6_now == ipv6:
-        print("ip update to:", ip_now, ipv6_now)
-        send_email(content=ip_now + "\n" + str(ipv6_now))
-        ip = ip_now
-        ipv6 = ipv6_now
+    # 定时任务，判断ip是否有更新，有更新则发送邮件
+    ip_now = get_ips(filter_ip)  # 获取当前ip
+    global IPS
+    if not ip_now == IPS:
+        print(
+            "ip update to:",
+            ip_now,
+        )
+        send_email(content=ip_now)
+        IPS = ip_now
     else:
-        print("ip not change:", ip_now, ipv6_now)
+        print("ip not change:", ip_now)
     threading.Timer(3600, main).start()  # 3600s 后调用该函数
 
 
 # python main func
 if __name__ == "__main__":
-    ip = get_ip()
-    ipv6 = get_ipv6()
-    print("ipv4:", ip, "\tipv6:", ipv6)
-    send_email(content=ip + "\n" + str(ipv6))
+    IPS = get_ips(filter_ip)
+    print("ips:", IPS)
+    send_email(content=IPS)
     main()
